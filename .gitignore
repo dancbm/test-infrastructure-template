@@ -1,0 +1,9 @@
+client\src\env.ts
+.iac\terraform.tfstate.backup
+.iac\providers.tf
+.iac\.terraform
+.iac\node_modules
+.iac\api.zip
+
+api\node_modules
+client\node_modules
