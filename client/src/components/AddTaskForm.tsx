@@ -4,6 +4,7 @@ import AddIcon from "@mui/icons-material/Add";
 import axios from "axios";
 
 import { API_URL } from "../env";
+import { signRequest } from "../authService";
 
 type AskTaskFormProps = {
     fetchTasks: () => Promise<void>;
@@ -14,9 +15,15 @@ export const AddTaskForm = ({ fetchTasks }: AskTaskFormProps) => {
 
     async function addNewTask() {
         try {
-            await axios.post(API_URL, {
-                name: newTask,
-                completed: false,
+            const signedRequest = await signRequest(API_URL, "POST");
+            await axios({
+                url: signedRequest.url,
+                method: signedRequest.method,
+                headers: signedRequest.headers,
+                data: {
+                    name: newTask,
+                    completed: false,
+                },
             });
 
             await fetchTasks();

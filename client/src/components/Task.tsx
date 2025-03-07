@@ -7,6 +7,7 @@ import axios from "axios";
 
 import { UpdateTaskForm } from "./UpdateTaskForm";
 import { API_URL } from "../env";
+import { signRequest } from "../authService";
 
 export type TaskType = {
     id: string;
@@ -26,10 +27,16 @@ export const Task = ({ task, fetchTasks }: TaskProps) => {
 
     async function handleCompletion() {
         try {
-            await axios.put(API_URL, {
-                id,
-                name,
-                completed: !isComplete,
+            const signedRequest = await signRequest(API_URL, "PUT");
+            await axios({
+                url: signedRequest.url,
+                method: signedRequest.method,
+                headers: signedRequest.headers,
+                data: {
+                    id,
+                    name,
+                    completed: !isComplete,
+                },
             });
 
             await fetchTasks();

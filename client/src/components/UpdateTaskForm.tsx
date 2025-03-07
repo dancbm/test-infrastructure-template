@@ -5,6 +5,7 @@ import { Button, Dialog, DialogTitle, TextField } from "@mui/material";
 
 import { TaskType } from "./Task";
 import { API_URL } from "../env";
+import { signRequest } from "../authService";
 
 type UpdateTaskFormProps = {
     task: TaskType;
@@ -24,10 +25,16 @@ export const UpdateTaskForm = ({
 
     async function handleUpdateTaskName() {
         try {
-            await axios.put(API_URL, {
-                id,
-                name: taskName,
-                completed,
+            const signedRequest = await signRequest(API_URL, "PUT");
+            await axios({
+                url: signedRequest.url,
+                method: signedRequest.method,
+                headers: signedRequest.headers,
+                data: {
+                    id,
+                    name: taskName,
+                    completed,
+                },
             });
 
             await fetchTasks();
