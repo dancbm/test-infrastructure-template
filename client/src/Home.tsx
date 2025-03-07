@@ -15,10 +15,10 @@ export function Home() {
 
             if (!signedRequest)
                 throw new Error("Couldn't get valid credentials");
-            // console.log("DANTEST", signedRequest);
 
-            // console.log("DANTEST", signedRequest);
-            const { data } = await axios(signedRequest.url, {
+            const { data } = await axios({
+                url: signedRequest.url,
+                method: signedRequest.method,
                 headers: signedRequest.headers,
             });
 

@@ -75,7 +75,6 @@ export const fetchAwsCredentials = async () => {
         });
 
         const { IdentityId } = await cognitoIdentityClient.send(getIdCommand);
-        console.log("DANTEST3", IdentityId);
 
         const getCredentialsCommand = new GetCredentialsForIdentityCommand({
             IdentityId,
@@ -88,7 +87,6 @@ export const fetchAwsCredentials = async () => {
         const { Credentials } = await cognitoIdentityClient.send(
             getCredentialsCommand
         );
-        console.log("DANTEST4", Credentials);
         return Credentials;
     } catch (error) {
         console.error("Error getting AWS credentials", error);
@@ -97,42 +95,44 @@ export const fetchAwsCredentials = async () => {
 };
 
 export const signRequest = async (url: string, method = "GET") => {
-    const credentials = await fetchAwsCredentials();
+    try {
+        const credentials = await fetchAwsCredentials();
+        if (!credentials) throw new Error("No credentials");
 
-    if (!credentials) throw new Error("No credentials");
+        const parsedUrl = new URL(url);
 
-    // console.log("DANTEST", credentials);
+        const signer = new SignatureV4({
+            credentials: {
+                accessKeyId: credentials.AccessKeyId,
+                secretAccessKey: credentials.SecretKey,
+                sessionToken: credentials.SessionToken,
+            },
+            region: AWS_REGION,
+            service: "lambda",
+            sha256: Sha256,
+        });
 
-    const signer = new SignatureV4({
-        credentials: {
-            accessKeyId: credentials.AccessKeyId,
-            secretAccessKey: credentials.SecretKey,
-            sessionToken: credentials.SessionToken,
-        },
-        region: AWS_REGION,
-        service: "lambda",
-        sha256: Sha256,
-    });
+        const request = new HttpRequest({
+            protocol: parsedUrl.protocol.replace(":", ""),
+            hostname: parsedUrl.hostname,
+            path: parsedUrl.pathname,
+            query: Object.fromEntries(parsedUrl.searchParams),
+            method: method,
+            headers: {
+                "Content-Type": "application/json",
+                host: parsedUrl.hostname,
+            },
+        });
 
-    const request = new HttpRequest({
-        protocol: "https",
-        hostname: new URL(url).hostname,
-        path: new URL(url).pathname,
-        method: method,
-        headers: {
-            "Content-Type": "application/json",
-            "X-Amz-Date": new Date().toISOString(),
-        },
-    });
+        const signedRequest = await signer.sign(request);
 
-    await signer.sign(request);
-
-    return {
-        url,
-        method,
-        headers: request.headers,
-        body: JSON.stringify({
-            /* your request payload if POST */
-        }),
-    };
+        return {
+            url,
+            method,
+            headers: signedRequest.headers,
+        };
+    } catch (error) {
+        console.error("I hate this: ", error);
+        throw error;
+    }
 };
