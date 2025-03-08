@@ -5,7 +5,7 @@ data "aws_iam_policy_document" "allow_lambda_function_url_invocation_document" {
       "lambda:InvokeFunctionUrl",
     ]
     resources = [
-      "${aws_lambda_function.task_app_lambda_function.arn}/*"
+      "${aws_lambda_function.task_app_lambda_function.arn}"
     ]
   }
 }
