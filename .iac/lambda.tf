@@ -25,25 +25,6 @@ data "aws_iam_policy_document" "access_dynamodb_table_document" {
   }
 }
 
-# data "aws_iam_policy_document" "allow_lambda_function_url_invocation_document" {
-#   statement {
-#     effect = "Allow"
-#     actions = [
-#       "lambda:InvokeFunctionUrl",
-#     ]
-#     resources = [
-#       "${aws_lambda_function.task_app_lambda_function.arn}/*"
-#     ]
-#     condition {
-#       test     = "ArnEquals"
-#       variable = "aws:PrincipalArn"
-#       values = [
-#         aws_iam_role.authorize_cognito_user_role.arn
-#       ]
-#     }
-#   }
-# }
-
 resource "aws_iam_role" "lambda_execution_role" {
   name = "lambda_execution_role"
 
@@ -61,11 +42,6 @@ resource "aws_iam_role" "lambda_execution_role" {
   })
 }
 
-# resource "aws_iam_policy" "allow_lambda_function_url_invocation_policy" {
-#   name   = "allow_lambda_function_url_invocation_policy"
-#   policy = data.aws_iam_policy_document.allow_lambda_function_url_invocation_document.json
-# }
-
 resource "aws_iam_policy" "access_dynamodb_table_policy" {
   name   = "access_dynamodb_table_policy"
   policy = data.aws_iam_policy_document.access_dynamodb_table_document.json
@@ -80,11 +56,6 @@ resource "aws_iam_role_policy_attachment" "lambda_execution_role_policy_attachme
   role       = aws_iam_role.lambda_execution_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
-
-# resource "aws_iam_role_policy_attachment" "allow_user_lambda_function_url_policy_attachment" {
-#   role       = aws_iam_role.lambda_execution_role.name
-#   policy_arn = aws_iam_policy.allow_lambda_function_url_invocation_policy.arn
-# }
 
 resource "aws_lambda_function" "task_app_lambda_function" {
   function_name    = "task_app_lambda_function"
