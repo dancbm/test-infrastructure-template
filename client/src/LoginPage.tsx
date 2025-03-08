@@ -1,6 +1,6 @@
 import { useState } from "react";
-import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
+import TextField from "@mui/material/TextField";
 
 import { signIn } from "./authService";
 
@@ -11,10 +11,19 @@ export const LoginPage = () => {
     const handleSignIn = async (e: { preventDefault: () => void }) => {
         e.preventDefault();
         try {
-            const session = await signIn(username, password);
-            console.log("Sign in successful", session);
-            if (session && typeof session.AccessToken !== "undefined") {
-                sessionStorage.setItem("accessToken", session.AccessToken);
+            const session = await signIn({ username, password });
+            console.log(
+                "Sign in successful",
+                session?.getAccessToken().getJwtToken()
+            );
+            if (
+                session &&
+                typeof session?.getAccessToken().getJwtToken() !== "undefined"
+            ) {
+                sessionStorage.setItem(
+                    "accessToken",
+                    session.getAccessToken().getJwtToken()
+                );
                 if (sessionStorage.getItem("accessToken")) {
                     window.location.href = "/home";
                 } else {

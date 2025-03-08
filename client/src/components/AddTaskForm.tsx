@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Button, TextField, Typography } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
-import axios from "axios";
 
 import { API_URL } from "../env";
 import { signRequest } from "../authService";
@@ -15,16 +14,20 @@ export const AddTaskForm = ({ fetchTasks }: AskTaskFormProps) => {
 
     async function addNewTask() {
         try {
-            const signedRequest = await signRequest(API_URL, "POST");
-            await axios({
-                url: signedRequest.url,
-                method: signedRequest.method,
-                headers: signedRequest.headers,
-                data: {
-                    name: newTask,
-                    completed: false,
-                },
+            const body = JSON.stringify({
+                name: newTask,
+                completed: false,
             });
+            const headers = await signRequest(API_URL, "POST", body);
+            const response = await fetch(API_URL, {
+                method: "POST",
+                headers,
+                body,
+            });
+
+            if (!response.ok) {
+                throw new Error(`Response status: ${response.status}`);
+            }
 
             await fetchTasks();
 

@@ -1,166 +1,35 @@
-import {
-    CognitoIdentityProviderClient,
-    InitiateAuthCommand,
-} from "@aws-sdk/client-cognito-identity-provider";
+import AWS from "aws-sdk";
+import { Sha256 } from "@aws-crypto/sha256-js";
+import { SignatureV4 } from "@aws-sdk/signature-v4";
 import { HttpRequest } from "@aws-sdk/protocol-http";
 import {
-    CognitoIdentityClient,
-    GetCredentialsForIdentityCommand,
-    GetIdCommand,
-} from "@aws-sdk/client-cognito-identity";
-import { SignatureV4 } from "@aws-sdk/signature-v4";
+    CognitoUserPool,
+    CognitoUser,
+    AuthenticationDetails,
+    CognitoUserSession,
+} from "amazon-cognito-identity-js";
+
 import {
     AWS_REGION,
     COGNITO_IDENTITY_POOL_ID,
     COGNITO_USER_POOL_ID,
     COGNITO_USER_POOL_APP_CLIENT_ID,
 } from "./env";
-import { Sha256 } from "@aws-crypto/sha256-js";
-
-export const cognitoClient = new CognitoIdentityProviderClient({
-    region: AWS_REGION,
-});
-
-const cognitoIdentityClient = new CognitoIdentityClient({ region: AWS_REGION });
-
-export const signIn = async (username: string, password: string) => {
-    const params = {
-        AuthFlow: "USER_PASSWORD_AUTH",
-        ClientId: COGNITO_USER_POOL_APP_CLIENT_ID,
-        AuthParameters: {
-            USERNAME: username,
-            PASSWORD: password,
-        },
-    };
-    try {
-        const command = new InitiateAuthCommand(params);
-        const { AuthenticationResult } = await cognitoClient.send(command);
-
-        if (AuthenticationResult) {
-            console.log("DANTEST", AuthenticationResult);
-            sessionStorage.setItem(
-                "idToken",
-                AuthenticationResult.IdToken || ""
-            );
-            sessionStorage.setItem(
-                "accessToken",
-                AuthenticationResult.AccessToken || ""
-            );
-            sessionStorage.setItem(
-                "refreshToken",
-                AuthenticationResult.RefreshToken || ""
-            );
-            return AuthenticationResult;
-        }
-    } catch (error) {
-        console.error("Error signing in: ", error);
-        throw error;
-    }
-};
-
-export const fetchAwsCredentials = async () => {
-    const idToken = sessionStorage.getItem("idToken");
-
-    if (!idToken) {
-        throw new Error("ID token is not available");
-    }
-
-    try {
-        const getIdCommand = new GetIdCommand({
-            IdentityPoolId: COGNITO_IDENTITY_POOL_ID,
-            Logins: {
-                [`cognito-idp.${AWS_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}`]:
-                idToken,
-            },
-        });
-
-        const { IdentityId } = await cognitoIdentityClient.send(getIdCommand);
-        console.log("DANTEST3", IdentityId);
-
-        const getCredentialsCommand = new GetCredentialsForIdentityCommand({
-            IdentityId,
-            Logins: {
-                [`cognito-idp.${AWS_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}`]:
-                idToken,
-            },
-        });
-
-        const { Credentials } = await cognitoIdentityClient.send(
-            getCredentialsCommand
-        );
-        console.log("DANTEST4", Credentials);
-        return Credentials;
-    } catch (error) {
-        console.error("Error getting AWS credentials", error);
-        throw error;
-    }
-};
-
-export const signRequest = async (url: string, method = "GET") => {
-    const credentials = await fetchAwsCredentials();
-
-    if (!credentials) throw new Error("No credentials");
-
-    // console.log("DANTEST", credentials);
-
-    const signer = new SignatureV4({
-        credentials: {
-            accessKeyId: credentials.AccessKeyId,
-            secretAccessKey: credentials.SecretKey,
-            sessionToken: credentials.SessionToken,
-        },
-        region: AWS_REGION,
-        service: "lambda",
-        sha256: Sha256,
-    });
-
-    const request = new HttpRequest({
-        protocol: "https",
-        hostname: new URL(url).hostname,
-        path: new URL(url).pathname,
-        method: method,
-        headers: {
-            "Content-Type": "application/json",
-            "X-Amz-Date": new Date().toISOString(),
-        },
-    });
-
-    await signer.sign(request);
-
-    return {
-        url,
-        method,
-        headers: request.headers,
-        body: JSON.stringify({
-            /* your request payload if POST */
-        }),
-    };
-};
-
-// src/services/auth.ts
-import {
-    CognitoUserPool,
-    CognitoUser,
-    AuthenticationDetails,
-    CognitoUserSession
-} from 'amazon-cognito-identity-js';
-import AWS from 'aws-sdk';
-import { awsConfig } from '../config/aws-config';
 
 // Initialize the Cognito User Pool
 const userPool = new CognitoUserPool({
-    UserPoolId: awsConfig.userPoolId,
-    ClientId: awsConfig.userPoolWebClientId
+    UserPoolId: COGNITO_USER_POOL_ID,
+    ClientId: COGNITO_USER_POOL_APP_CLIENT_ID,
 });
 
 // Configure AWS region
-AWS.config.region = awsConfig.region;
+AWS.config.region = AWS_REGION;
 
 /**
  * Type definition for sign-in parameters
  */
 export interface SignInParams {
-    email: string;
+    username: string;
     password: string;
 }
 
@@ -177,49 +46,57 @@ export interface AwsCredentials {
 /**
  * Get AWS temporary credentials using Cognito Identity Pool
  */
-export const getAwsCredentials = async (idToken: string): Promise<AwsCredentials> => {
+export const getAwsCredentials = async (
+    idToken: string
+): Promise<AwsCredentials> => {
     // Configure credentials provider with Cognito Identity Pool
     AWS.config.credentials = new AWS.CognitoIdentityCredentials({
-        IdentityPoolId: awsConfig.identityPoolId,
+        IdentityPoolId: COGNITO_IDENTITY_POOL_ID,
         Logins: {
-            [`cognito-idp.${awsConfig.region}.amazonaws.com/${awsConfig.userPoolId}`]: idToken
-        }
+            [`cognito-idp.${AWS_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}`]:
+                idToken,
+        },
     });
 
     // Refresh credentials
     return new Promise((resolve, reject) => {
-        (AWS.config.credentials as AWS.CognitoIdentityCredentials).refresh((error) => {
-            if (error) {
-                console.error('Error refreshing AWS credentials:', error);
-                reject(error);
-            } else {
-                const credentials = AWS.config.credentials as AWS.CognitoIdentityCredentials;
-                resolve({
-                    accessKeyId: credentials.accessKeyId,
-                    secretAccessKey: credentials.secretAccessKey,
-                    sessionToken: credentials.sessionToken,
-                    expiration: credentials.expireTime
-                });
+        (AWS.config.credentials as AWS.CognitoIdentityCredentials).refresh(
+            (error) => {
+                if (error) {
+                    console.error("Error refreshing AWS credentials:", error);
+                    reject(error);
+                } else {
+                    const credentials = AWS.config
+                        .credentials as AWS.CognitoIdentityCredentials;
+                    resolve({
+                        accessKeyId: credentials.accessKeyId,
+                        secretAccessKey: credentials.secretAccessKey,
+                        sessionToken: credentials.sessionToken,
+                        expiration: credentials.expireTime,
+                    });
+                }
             }
-        });
+        );
     });
 };
 
 /**
  * Sign in a user
  */
-export const signIn = async (params: SignInParams): Promise<CognitoUserSession> => {
-    const { email, password } = params;
+export const signIn = async (
+    params: SignInParams
+): Promise<CognitoUserSession> => {
+    const { username, password } = params;
 
     return new Promise((resolve, reject) => {
         const authenticationDetails = new AuthenticationDetails({
-            Username: email,
-            Password: password
+            Username: username,
+            Password: password,
         });
 
         const cognitoUser = new CognitoUser({
-            Username: email,
-            Pool: userPool
+            Username: username,
+            Pool: userPool,
         });
 
         cognitoUser.authenticateUser(authenticationDetails, {
@@ -233,18 +110,18 @@ export const signIn = async (params: SignInParams): Promise<CognitoUserSession> 
                     AWS.config.credentials = new AWS.Credentials({
                         accessKeyId: credentials.accessKeyId,
                         secretAccessKey: credentials.secretAccessKey,
-                        sessionToken: credentials.sessionToken
+                        sessionToken: credentials.sessionToken,
                     });
 
                     resolve(session);
                 } catch (error) {
-                    console.error('Error getting AWS credentials:', error);
+                    console.error("Error getting AWS credentials:", error);
                     reject(error);
                 }
             },
             onFailure: (err) => {
                 reject(err);
-            }
+            },
         });
     });
 };
@@ -270,23 +147,25 @@ export const getCurrentSession = (): Promise<CognitoUserSession> => {
         const cognitoUser = userPool.getCurrentUser();
 
         if (!cognitoUser) {
-            reject(new Error('No user found'));
+            reject(new Error("No user found"));
             return;
         }
 
-        cognitoUser.getSession((err: Error | null, session: CognitoUserSession | null) => {
-            if (err) {
-                reject(err);
-                return;
-            }
+        cognitoUser.getSession(
+            (err: Error | null, session: CognitoUserSession | null) => {
+                if (err) {
+                    reject(err);
+                    return;
+                }
 
-            if (!session) {
-                reject(new Error('No valid session'));
-                return;
-            }
+                if (!session) {
+                    reject(new Error("No valid session"));
+                    return;
+                }
 
-            resolve(session);
-        });
+                resolve(session);
+            }
+        );
     });
 };
 
@@ -298,8 +177,8 @@ export const getIdToken = async (): Promise<string> => {
         const session = await getCurrentSession();
         return session.getIdToken().getJwtToken();
     } catch (error) {
-        console.error('Error getting ID token:', error);
-        throw new Error('Not authenticated');
+        console.error("Error getting ID token:", error);
+        throw new Error("Not authenticated");
     }
 };
 
@@ -307,43 +186,64 @@ export const getIdToken = async (): Promise<string> => {
  * Get SigV4 signed request headers
  * Used for AWS_IAM authenticated Lambda function URLs
  */
-export const getSignedHeaders = async (
+export const signRequest = async (
     url: string,
-    method: string = 'GET',
+    method: string = "GET",
     body: string | null = null
 ): Promise<Record<string, string>> => {
-    // Ensure we have credentials
-    if (!AWS.config.credentials) {
-        try {
+    try {
+        // Ensure credentials are available
+        if (!AWS.config.credentials) {
             const session = await getCurrentSession();
             const idToken = session.getIdToken().getJwtToken();
             await getAwsCredentials(idToken);
-        } catch (error) {
-            console.error('Error getting AWS credentials:', error);
-            throw new Error('Not authenticated');
         }
+
+        // Extract credentials from AWS.config
+        const credentials = {
+            accessKeyId: AWS.config.credentials?.accessKeyId ?? "",
+            secretAccessKey: AWS.config.credentials?.secretAccessKey ?? "",
+            sessionToken: AWS.config.credentials?.sessionToken,
+        };
+
+        if (!credentials.accessKeyId || !credentials.secretAccessKey) {
+            throw new Error("Missing AWS credentials");
+        }
+
+        // 🔹 Check the AWS Identity using STS
+        // const stsClient = new STSClient({ region: AWS_REGION, credentials });
+        // const identity = await stsClient.send(new GetCallerIdentityCommand({}));
+        // console.log("DANTEST - AWS Identity: ", identity);
+
+        // Parse the URL to get host and path
+        const parsedUrl = new URL(url);
+
+        const request = new HttpRequest({
+            hostname: parsedUrl.hostname,
+            path: parsedUrl.pathname + parsedUrl.search,
+            method: method,
+            headers: {
+                host: parsedUrl.hostname,
+                "Content-Type": "application/json",
+            },
+            body: body || undefined,
+        });
+
+        // Create a request signer
+        const signer = new SignatureV4({
+            credentials,
+            region: AWS_REGION,
+            service: "lambda",
+            sha256: Sha256,
+        });
+
+        // Sign the request and return the headers
+        const signedRequest = await signer.sign(request);
+        return signedRequest.headers;
+    } catch (error) {
+        console.error("Signing error:", error);
+        throw error;
     }
-
-    // Parse the URL to get host and path
-    const parsedUrl = new URL(url);
-
-    // Create a request signer
-    const signer = new AWS.Signers.V4({
-        service: 'lambda',
-        region: awsConfig.region,
-        credentials: AWS.config.credentials,
-        headers: {
-            'Host': parsedUrl.host,
-            'Content-Type': 'application/json'
-        },
-        body: body || '',
-        method: method,
-        path: parsedUrl.pathname + parsedUrl.search
-    });
-
-    // Sign the request and return the headers
-    const signedRequest = signer.addAuthorization();
-    return signedRequest.headers;
 };
 
 /**
@@ -358,13 +258,15 @@ export const isAuthenticated = (): Promise<boolean> => {
             return;
         }
 
-        cognitoUser.getSession((err: Error | null, session: CognitoUserSession | null) => {
-            if (err || !session) {
-                resolve(false);
-                return;
-            }
+        cognitoUser.getSession(
+            (err: Error | null, session: CognitoUserSession | null) => {
+                if (err || !session) {
+                    resolve(false);
+                    return;
+                }
 
-            resolve(session.isValid());
-        });
+                resolve(session.isValid());
+            }
+        );
     });
 };

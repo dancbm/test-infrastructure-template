@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
 
 import { AddTaskForm } from "./components/AddTaskForm";
 import { Task, TaskType } from "./components/Task";
@@ -11,18 +10,18 @@ export function Home() {
 
     const fetchTasks = async () => {
         try {
-            const signedRequest = await signRequest(API_URL);
-
-            if (!signedRequest)
-                throw new Error("Couldn't get valid credentials");
-
-            const { data } = await axios({
-                url: signedRequest.url,
-                method: signedRequest.method,
-                headers: signedRequest.headers,
+            const headers = await signRequest(API_URL, "GET");
+            const response = await fetch(API_URL, {
+                method: "GET",
+                headers,
             });
 
-            setTasks(data);
+            if (!response.ok) {
+                throw new Error(`Response status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            setTasks(data || []);
         } catch (error) {
             console.log(error);
         }

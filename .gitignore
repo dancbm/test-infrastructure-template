@@ -1,10 +1,12 @@
-client/src/env.ts
 .iac/terraform.tfstate.backup
 .iac/providers.tf
 .iac/.terraform
 .iac/node_modules
 .iac/api.zip
 .iac/.terraform.lock.hcl
+.iac/terraform.tfstate
 
 api/node_modules
+
+client/src/env.ts
 client/node_modules

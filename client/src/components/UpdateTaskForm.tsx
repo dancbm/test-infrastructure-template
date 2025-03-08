@@ -1,6 +1,5 @@
 import { useState } from "react";
 import CheckIcon from "@mui/icons-material/Check";
-import axios from "axios";
 import { Button, Dialog, DialogTitle, TextField } from "@mui/material";
 
 import { TaskType } from "./Task";
@@ -25,17 +24,21 @@ export const UpdateTaskForm = ({
 
     async function handleUpdateTaskName() {
         try {
-            const signedRequest = await signRequest(API_URL, "PUT");
-            await axios({
-                url: signedRequest.url,
-                method: signedRequest.method,
-                headers: signedRequest.headers,
-                data: {
-                    id,
-                    name: taskName,
-                    completed,
-                },
+            const body = JSON.stringify({
+                id,
+                name: taskName,
+                completed,
             });
+            const headers = await signRequest(API_URL, "PUT", body);
+            const response = await fetch(API_URL, {
+                method: "PUT",
+                headers,
+                body,
+            });
+
+            if (!response.ok) {
+                throw new Error(`Response status: ${response.status}`);
+            }
 
             await fetchTasks();
 

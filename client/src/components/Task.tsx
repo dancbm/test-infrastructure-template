@@ -3,7 +3,6 @@ import { Button, Checkbox, Typography } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import classNames from "classnames";
-import axios from "axios";
 
 import { UpdateTaskForm } from "./UpdateTaskForm";
 import { API_URL } from "../env";
@@ -27,17 +26,21 @@ export const Task = ({ task, fetchTasks }: TaskProps) => {
 
     async function handleCompletion() {
         try {
-            const signedRequest = await signRequest(API_URL, "PUT");
-            await axios({
-                url: signedRequest.url,
-                method: signedRequest.method,
-                headers: signedRequest.headers,
-                data: {
-                    id,
-                    name,
-                    completed: !isComplete,
-                },
+            const body = JSON.stringify({
+                id,
+                name,
+                completed: !isComplete,
             });
+            const headers = await signRequest(API_URL, "PUT", body);
+            const response = await fetch(API_URL, {
+                method: "PUT",
+                headers,
+                body,
+            });
+
+            if (!response.ok) {
+                throw new Error(`Response status: ${response.status}`);
+            }
 
             await fetchTasks();
 
@@ -49,7 +52,18 @@ export const Task = ({ task, fetchTasks }: TaskProps) => {
 
     async function handleDeleteTask() {
         try {
-            await axios.delete(`${API_URL}/${task.id}`);
+            const headers = await signRequest(
+                `${API_URL}/${task.id}`,
+                "DELETE"
+            );
+            const response = await fetch(`${API_URL}/${task.id}`, {
+                method: "DELETE",
+                headers,
+            });
+
+            if (!response.ok) {
+                throw new Error(`Response status: ${response.status}`);
+            }
             await fetchTasks();
         } catch (error) {
             console.error(error);
